@@ -3,6 +3,8 @@
 > **A Smart Street Dog Care, Feeding, Donation & Rescue Platform**  
 > Community-driven animal welfare platform built for India's indie street dogs, connecting caring citizens, neighborhood daily feeders, donation hub hosts, and emergency veterinary rescuers.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kandukuririshitha06-glitch/Streetdog)
+
 ---
 
 ## 🌟 Implemented Features
