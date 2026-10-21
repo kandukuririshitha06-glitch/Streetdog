@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isUnder5MB() {
+      return request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    // Street dog sighting photographs
+    match /dog_reports/{reportId}/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isImage() && isUnder5MB();
+    }
+
+    // Donation point verification photographs
+    match /donation_points/{pointId}/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isImage() && isUnder5MB();
+    }
+
+    // Feeding task completion proof
+    match /feeding_evidence/{taskId}/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isImage() && isUnder5MB();
+    }
+
+    // Emergency rescue injury photos
+    match /emergency_rescues/{caseId}/{fileName} {
+      allow read: if true;
+      allow write: if isImage() && isUnder5MB();
+    }
+  }
+}

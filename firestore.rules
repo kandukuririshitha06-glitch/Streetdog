@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for authentication & role verification
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+
+    function isVolunteer() {
+      return isAuthenticated() && (getUserRole() == 'volunteer' || isAdmin());
+    }
+
+    function isRescuer() {
+      return isAuthenticated() && (getUserRole() == 'rescuer' || isAdmin());
+    }
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // Users can create own profile but CANNOT self-assign 'admin' role
+      allow create: if isOwner(userId) && request.resource.data.role != 'admin';
+      // Only admins can change a user's role
+      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 2. Dog Reports Collection
+    match /dogReports/{reportId} {
+      allow read: if true; // Public read for community visibility
+      allow create: if isAuthenticated() && request.resource.data.reporterId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.reporterId ||
+        isVolunteer() ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 3. Dog Profiles Collection
+    match /dogProfiles/{dogId} {
+      allow read: if true;
+      allow create, update: if isVolunteer() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 4. Street Dogs Donation Points Collection
+    match /donationPoints/{pointId} {
+      // Public can only view approved verified donation points
+      allow read: if resource.data.verificationStatus == 'verified' || isOwner(resource.data.hostId) || isAdmin();
+      // Users can submit, but verificationStatus MUST be 'pending'
+      allow create: if isAuthenticated() && request.resource.data.verificationStatus == 'pending';
+      // Only Admins can set verificationStatus to 'verified' or 'rejected'
+      allow update: if isAdmin() || (
+        isOwner(resource.data.hostId) && request.resource.data.verificationStatus == resource.data.verificationStatus
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 5. Feeding Tasks Collection
+    match /feedingTasks/{taskId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      // Only authenticated volunteers can claim or complete tasks
+      allow update: if isVolunteer() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 6. Donations & Contributions Collection
+    match /donations/{donationId} {
+      allow read: if isOwner(resource.data.donorId) || isAdmin() || isOwner(resource.data.recipientId);
+      allow create: if isAuthenticated() && request.resource.data.donorId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // 7. Donation Campaigns Collection
+    match /campaigns/{campaignId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 8. Emergency Rescue Cases Collection
+    match /rescueCases/{caseId} {
+      allow read: if true;
+      allow create: if true; // Anonymous/public citizens can report emergency injuries
+      allow update: if isRescuer() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 9. Notifications Collection
+    match /notifications/{notifId} {
+      allow read: if isOwner(resource.data.recipientId) || isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if isOwner(resource.data.recipientId);
+      allow delete: if isOwner(resource.data.recipientId) || isAdmin();
+    }
+
+    // 10. Audit Logs Collection
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Append-only audit trail
+    }
+  }
+}
